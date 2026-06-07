@@ -55,7 +55,7 @@ export const phones: Phone[] = [
     imeiVerified: true,
     accessories: ['Charger', 'Cable', 'Case'],
     shopId: 's1',
-    image: '/phones/samsung-s21.jpg',
+    image: 'phones/samsung-s21.jpg',
     listedDaysAgo: 2,
   },
   {
@@ -73,7 +73,7 @@ export const phones: Phone[] = [
     batteryHealth: 89,
     accessories: ['Charger', 'Cable', 'Box'],
     shopId: 's2',
-    image: '/phones/iphone-12.jpg',
+    image: 'phones/iphone-12.jpg',
     listedDaysAgo: 1,
   },
   {
@@ -91,7 +91,7 @@ export const phones: Phone[] = [
     batteryHealth: 94,
     accessories: ['Charger', 'Cable', 'Box', 'Case'],
     shopId: 's2',
-    image: '/phones/iphone-13.jpg',
+    image: 'phones/iphone-13.jpg',
     listedDaysAgo: 3,
   },
   {
@@ -108,7 +108,7 @@ export const phones: Phone[] = [
     imeiVerified: true,
     accessories: ['Charger', 'Cable'],
     shopId: 's3',
-    image: '/phones/vivo-v25.jpg',
+    image: 'phones/vivo-v25.jpg',
     listedDaysAgo: 5,
   },
   {
@@ -125,7 +125,7 @@ export const phones: Phone[] = [
     imeiVerified: true,
     accessories: ['Charger', 'Cable', 'Case'],
     shopId: 's4',
-    image: '/phones/oppo-reno8.jpg',
+    image: 'phones/oppo-reno8.jpg',
     listedDaysAgo: 1,
   },
   {
@@ -142,7 +142,7 @@ export const phones: Phone[] = [
     imeiVerified: true,
     accessories: ['Charger', 'Cable', 'Box'],
     shopId: 's5',
-    image: '/phones/realme-gt.jpg',
+    image: 'phones/realme-gt.jpg',
     listedDaysAgo: 4,
   },
   {
@@ -159,7 +159,7 @@ export const phones: Phone[] = [
     imeiVerified: true,
     accessories: ['Charger', 'Cable'],
     shopId: 's6',
-    image: '/phones/xiaomi-12.jpg',
+    image: 'phones/xiaomi-12.jpg',
     listedDaysAgo: 6,
   },
   {
@@ -176,7 +176,7 @@ export const phones: Phone[] = [
     imeiVerified: true,
     accessories: ['Charger', 'Cable', 'Box', 'Case'],
     shopId: 's7',
-    image: '/phones/oneplus-10.jpg',
+    image: 'phones/oneplus-10.jpg',
     listedDaysAgo: 2,
   },
   {
@@ -193,7 +193,7 @@ export const phones: Phone[] = [
     imeiVerified: true,
     accessories: ['Charger', 'Cable'],
     shopId: 's8',
-    image: '/phones/moto-edge.jpg',
+    image: 'phones/moto-edge.jpg',
     listedDaysAgo: 7,
   },
   {
@@ -210,7 +210,7 @@ export const phones: Phone[] = [
     imeiVerified: true,
     accessories: ['Charger', 'Cable', 'Case'],
     shopId: 's1',
-    image: '/phones/samsung-a53.jpg',
+    image: 'phones/samsung-a53.jpg',
     listedDaysAgo: 3,
   },
   {
@@ -228,7 +228,7 @@ export const phones: Phone[] = [
     batteryHealth: 82,
     accessories: ['Charger', 'Cable'],
     shopId: 's2',
-    image: '/phones/iphone-11.jpg',
+    image: 'phones/iphone-11.jpg',
     listedDaysAgo: 8,
   },
   {
@@ -245,7 +245,7 @@ export const phones: Phone[] = [
     imeiVerified: true,
     accessories: ['Charger', 'Cable', 'Box', 'Case'],
     shopId: 's3',
-    image: '/phones/vivo-x80.jpg',
+    image: 'phones/vivo-x80.jpg',
     listedDaysAgo: 1,
   },
 ];
@@ -347,14 +347,14 @@ export const banners = [
     shopName: 'GALAXY PHONE STORE',
     headline: 'Weekend Sale — Up to 15% Off',
     subheadline: 'On all Samsung phones this week',
-    image: '/banners/banner-galaxy.jpg',
+    image: 'banners/banner-galaxy.jpg',
   },
   {
     id: 'b2',
     shopName: 'D.J. MOBILES',
     headline: 'iPhone Festival',
     subheadline: 'Best prices on iPhone 12 & 13',
-    image: '/banners/banner-dj.jpg',
+    image: 'banners/banner-dj.jpg',
   },
 ];
 
