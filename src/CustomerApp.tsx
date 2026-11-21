@@ -1,0 +1,479 @@
+import { useState, useEffect } from 'react';
+import { ArrowLeft } from 'lucide-react';
+import { useShopkeeperSession } from './contexts/ShopkeeperSessionContext';
+import { useCustomerSession } from './contexts/CustomerSessionContext';
+import { loadCatalog } from './data';
+import { useAppHistory } from './lib/useAppHistory';
+import { OPEN_SHOPKEEPER_LOGIN_EVENT } from './components/LoginPopup';
+
+// Components
+import BottomNav from './components/BottomNav';
+import DashboardNav from './components/DashboardNav';
+
+// Customer Screens
+import CustomerLoginScreen from './screens/CustomerLoginScreen';
+import HomeScreen from './screens/HomeScreen';
+import SearchScreen from './screens/SearchScreen';
+import DeviceDetailScreen from './screens/DeviceDetailScreen';
+import ShopProfileScreen from './screens/ShopProfileScreen';
+import AllShopsScreen from './screens/AllShopsScreen';
+import ShopkeeperLoginScreen from './screens/ShopkeeperLoginScreen';
+import PlaceholderScreen from './screens/PlaceholderScreen';
+
+// Dashboard Screens
+import DashboardHome from './screens/dashboard/DashboardHome';
+import InventoryScreen from './screens/dashboard/InventoryScreen';
+import PhoneFormScreen from './screens/dashboard/PhoneFormScreen';
+import SubscriptionScreen from './screens/dashboard/SubscriptionScreen';
+import ShopkeeperProfileScreen from './screens/dashboard/ShopkeeperProfileScreen';
+
+// New Dashboard Screens
+import AnalyticsScreen from './screens/dashboard/AnalyticsScreen';
+import OffersScreen from './screens/dashboard/OffersScreen';
+import NotificationsScreen from './screens/dashboard/NotificationsScreen';
+import SettingsScreen from './screens/dashboard/SettingsScreen';
+import HelpSupportScreen from './screens/dashboard/HelpSupportScreen';
+import SoldInventoryScreen from './screens/dashboard/SoldInventoryScreen';
+import ActivityHistoryScreen from './screens/dashboard/ActivityHistoryScreen';
+
+// Store
+import { getPhoneById as getInventoryPhone } from './store/phoneStore';
+import type { InventoryPhone } from './store/phoneStore';
+import type { Phone } from './data';
+
+// ─── App-level types ─────────────────────────────────────────────────────────
+
+type CustomerTab = 'home' | 'search' | 'shops' | 'deals' | 'profile';
+
+type DashboardTab = 'dashboard' | 'inventory' | 'subscription' | 'profile';
+
+type DashboardScreen =
+  | DashboardTab
+  | 'addPhone'
+  | 'editPhone'
+  | 'soldInventory'
+  | 'analytics'
+  | 'offers'
+  | 'notifications'
+  | 'settings'
+  | 'help'
+  | 'activityHistory';
+
+// Which dashboard tabs show the bottom nav
+const DASH_NAV_TABS: DashboardTab[] = ['dashboard', 'inventory', 'subscription', 'profile'];
+
+// Everything that decides "which screen am I on" — saved in the browser history
+// so the phone's back gesture moves between screens instead of leaving the site.
+interface AppRoute {
+  m: 'c' | 'd'; // c = customer side, d = shopkeeper dashboard
+  tab: CustomerTab;
+  ph: string | null;
+  sh: string | null;
+  lg: boolean;
+  cl: boolean;
+  q: string;
+  ds: DashboardScreen;
+  dt: DashboardTab;
+  ep: string | null;
+}
+
+// ─── App ─────────────────────────────────────────────────────────────────────
+
+export default function App() {
+  const { shop, loading: sessionLoading, logout } = useShopkeeperSession();
+  const { customer, loading: customerSessionLoading, logout: customerLogout } = useCustomerSession();
+
+  // Mode — driven by whether a shopkeeper is actually signed in
+  const isDashboard = Boolean(shop);
+
+  // Kick off the public catalog fetch as early as possible, regardless of
+  // which screen ends up mounting first.
+  useEffect(() => {
+    loadCatalog();
+  }, []);
+
+  // Customer side — browsing is open by default, no login wall
+  const [showCustomerLogin, setShowCustomerLogin] = useState(false);
+  const [customerTab, setCustomerTab] = useState<CustomerTab>('home');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedPhoneId, setSelectedPhoneId] = useState<string | null>(null);
+  const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
+  const [showLogin, setShowLogin] = useState(false);
+
+  // Dashboard side
+  const [dashTab, setDashTab] = useState<DashboardTab>('dashboard');
+  const [dashScreen, setDashScreen] = useState<DashboardScreen>('dashboard');
+  const [editingPhone, setEditingPhone] = useState<InventoryPhone | null>(null);
+
+  // ─── Back button / back gesture support ─────────────────────────────────────
+
+  const route: AppRoute = isDashboard
+    ? { m: 'd', tab: 'home', ph: null, sh: null, lg: false, cl: false, q: '', ds: dashScreen, dt: dashTab, ep: editingPhone?.id ?? null }
+    : { m: 'c', tab: customerTab, ph: selectedPhoneId, sh: selectedShopId, lg: showLogin, cl: showCustomerLogin, q: searchQuery, ds: 'dashboard', dt: 'dashboard', ep: null };
+
+  const applyRoute = (r: AppRoute) => {
+    setCustomerTab(r.tab);
+    setSelectedPhoneId(r.ph);
+    setSelectedShopId(r.sh);
+    setShowLogin(r.lg);
+    setShowCustomerLogin(r.cl);
+    setSearchQuery(r.q);
+    const ep = r.ep ? getInventoryPhone(r.ep) ?? null : null;
+    setEditingPhone(ep);
+    setDashTab(r.dt);
+    setDashScreen(r.ds === 'editPhone' && !ep ? 'inventory' : r.ds);
+  };
+
+  const { back } = useAppHistory<AppRoute>(route, applyRoute, !(sessionLoading || customerSessionLoading));
+
+  // The login popup's "Shopkeeper? Log in here" link
+  useEffect(() => {
+    const open = () => { setShowCustomerLogin(false); setShowLogin(true); };
+    window.addEventListener(OPEN_SHOPKEEPER_LOGIN_EVENT, open);
+    return () => window.removeEventListener(OPEN_SHOPKEEPER_LOGIN_EVENT, open);
+  }, []);
+
+  // Bottom menu (Home / Search / Shops / Deals / Profile) — works from every customer page
+  const goToTab = (tab: string) => {
+    if (tab === customerTab && !selectedPhoneId && !selectedShopId) return;
+    setSelectedPhoneId(null);
+    setSelectedShopId(null);
+    setShowLogin(false);
+    setShowCustomerLogin(false);
+    setSearchQuery('');
+    setCustomerTab(tab as CustomerTab);
+  };
+
+  const backToHome = () => back(() => setCustomerTab('home'));
+
+  // ─── Handlers ────────────────────────────────────────────────────────────────
+
+  const goToDashScreen = (screen: string) => {
+    setDashScreen(screen as DashboardScreen);
+    // Keep the tab in sync for known tab screens
+    if (DASH_NAV_TABS.includes(screen as DashboardTab)) {
+      setDashTab(screen as DashboardTab);
+    }
+  };
+
+  const handleDashTabChange = (tab: string) => {
+    setDashTab(tab as DashboardTab);
+    setDashScreen(tab as DashboardScreen);
+  };
+
+  const handleDashBack = () => {
+    // Go back one screen (falls back to the active nav tab)
+    back(() => setDashScreen(dashTab));
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    setDashScreen('dashboard');
+    setDashTab('dashboard');
+  };
+
+  // ─── Render: restoring an existing session ───────────────────────────────
+
+  if (sessionLoading || customerSessionLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen" style={{ background: '#E8ECF0' }}>
+        <div className="w-8 h-8 border-2 border-[#1A73E8] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // ─── Render: Customer mode ────────────────────────────────────────────────
+
+  if (!isDashboard) {
+    // Customer login/signup screen (only reached if tapped from Profile)
+    if (showCustomerLogin) {
+      return (
+        <div className="flex justify-center min-h-screen" style={{ background: '#E8ECF0' }}>
+          <div className="w-full sm:max-w-[430px] relative">
+            <CustomerLoginScreen
+              onDone={() => back(() => setShowCustomerLogin(false))}
+              onBack={() => back(() => setShowCustomerLogin(false))}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    // Shopkeeper login screen (only reached if tapped from Profile)
+    if (showLogin) {
+      return (
+        <div className="flex justify-center min-h-screen" style={{ background: '#E8ECF0' }}>
+          <div className="w-full sm:max-w-[430px] relative">
+            <ShopkeeperLoginScreen
+              onLogin={() => setShowLogin(false)}
+              onBack={() => back(() => setShowLogin(false))}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    // Device Detail
+    if (selectedPhoneId) {
+      return (
+        <div className="flex justify-center min-h-screen" style={{ background: '#E8ECF0' }}>
+          <div className="w-full sm:max-w-[430px] relative">
+            <DeviceDetailScreen
+              phoneId={selectedPhoneId}
+              activeTab={customerTab}
+              onTabChange={goToTab}
+              onBack={() => back(() => setSelectedPhoneId(null))}
+              onShopTap={(shopId) => { setSelectedPhoneId(null); setSelectedShopId(shopId); }}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    // Shop Profile
+    if (selectedShopId) {
+      return (
+        <div className="flex justify-center min-h-screen" style={{ background: '#E8ECF0' }}>
+          <div className="w-full sm:max-w-[430px] relative">
+            <ShopProfileScreen
+              shopId={selectedShopId}
+              activeTab={customerTab}
+              onTabChange={goToTab}
+              onBack={() => back(() => setSelectedShopId(null))}
+              onPhoneTap={(phone: Phone) => { setSelectedShopId(null); setSelectedPhoneId(phone.id); }}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    // Search
+    if (customerTab === 'search') {
+      return (
+        <div className="flex justify-center min-h-screen" style={{ background: '#E8ECF0' }}>
+          <div className="w-full sm:max-w-[430px] relative">
+            <SearchScreen
+              initialQuery={searchQuery}
+              activeTab={customerTab}
+              onTabChange={goToTab}
+              onBack={backToHome}
+              onPhoneTap={(phone: Phone) => setSelectedPhoneId(phone.id)}
+              onShopTap={(shopId) => setSelectedShopId(shopId)}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    // Shops tab — full shop directory
+    if (customerTab === 'shops') {
+      return (
+        <div className="flex justify-center min-h-screen" style={{ background: '#E8ECF0' }}>
+          <div className="w-full sm:max-w-[430px] relative">
+            <AllShopsScreen
+              activeTab={customerTab}
+              onTabChange={goToTab}
+              onBack={backToHome}
+              onShopTap={(shopId) => setSelectedShopId(shopId)}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    // Placeholder tabs (deals)
+    if (customerTab === 'deals') {
+      return (
+        <div className="flex justify-center min-h-screen" style={{ background: '#E8ECF0' }}>
+          <div className="w-full sm:max-w-[430px] relative">
+            <PlaceholderScreen
+              tabKey={customerTab}
+              activeTab={customerTab}
+              onTabChange={goToTab}
+              onBack={backToHome}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    // Profile tab
+    if (customerTab === 'profile') {
+      return (
+        <div className="flex justify-center min-h-screen" style={{ background: '#E8ECF0' }}>
+          <div className="w-full sm:max-w-[430px] relative flex flex-col min-h-screen">
+            <button
+              onClick={backToHome}
+              aria-label="Back"
+              className="btn-tap absolute top-12 left-4 w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center z-10"
+            >
+              <ArrowLeft size={20} color="#1A1D1F" />
+            </button>
+            <div className="flex-1 flex flex-col items-center justify-center gap-6 px-6 pb-20">
+              {customer ? (
+                <>
+                  <div
+                    className="w-20 h-20 rounded-3xl flex items-center justify-center text-2xl font-bold text-white"
+                    style={{ background: 'linear-gradient(135deg, #1A73E8, #0D47A1)' }}
+                  >
+                    {customer.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="text-center">
+                    <h2 className="text-xl font-bold text-[#1A1D1F]">{customer.name}</h2>
+                    <p className="text-sm text-[#6B7280] mt-1">{customer.phone}</p>
+                  </div>
+                  <button
+                    onClick={async () => { await customerLogout(); setCustomerTab('home'); }}
+                    className="btn-tap w-full h-12 rounded-2xl text-sm font-semibold text-red-500 bg-red-50 border border-red-200"
+                  >
+                    Sign Out
+                  </button>
+                  <button
+                    onClick={() => setShowLogin(true)}
+                    className="text-sm font-medium text-[#1A73E8]"
+                  >
+                    Are you a shopkeeper? Sign in here
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div
+                    className="w-20 h-20 rounded-3xl flex items-center justify-center"
+                    style={{ background: 'linear-gradient(135deg, #1A73E8, #0D47A1)' }}
+                  >
+                    <span className="text-3xl">👤</span>
+                  </div>
+                  <div className="text-center">
+                    <h2 className="text-xl font-bold text-[#1A1D1F]">You're browsing as a guest</h2>
+                    <p className="text-sm text-[#6B7280] mt-2">
+                      Sign in to save favourites, track offers, and check out faster.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowCustomerLogin(true)}
+                    className="btn-tap w-full h-14 rounded-2xl text-white font-semibold text-base"
+                    style={{ background: 'linear-gradient(135deg, #1A73E8, #0D47A1)' }}
+                  >
+                    Log In / Sign Up
+                  </button>
+                  <button
+                    onClick={() => setShowLogin(true)}
+                    className="btn-tap w-full h-14 rounded-2xl text-[#1A1D1F] font-semibold text-base bg-white border border-[#E5E7EB]"
+                  >
+                    Sign in as Shopkeeper
+                  </button>
+                </>
+              )}
+            </div>
+            <BottomNav activeTab={customerTab} onTabChange={goToTab} />
+          </div>
+        </div>
+      );
+    }
+
+    // Home
+    return (
+      <div className="flex justify-center min-h-screen" style={{ background: '#E8ECF0' }}>
+        <div className="w-full sm:max-w-[430px] relative">
+          <HomeScreen
+            activeTab={customerTab}
+            onTabChange={goToTab}
+            onPhoneTap={(phone: Phone) => setSelectedPhoneId(phone.id)}
+            onShopTap={(shopId) => setSelectedShopId(shopId)}
+            onSearchTap={(query) => { setSearchQuery(query ?? ''); setCustomerTab('search'); }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Render: Dashboard mode ───────────────────────────────────────────────
+
+  const showDashNav = DASH_NAV_TABS.includes(dashScreen as DashboardTab);
+
+  return (
+    <div className="flex justify-center min-h-screen" style={{ background: '#E8ECF0' }}>
+      <div className="w-full sm:max-w-[430px] relative">
+        {/* Screen routing */}
+        {dashScreen === 'dashboard' && (
+          <DashboardHome
+            onNavigate={goToDashScreen}
+            shopName={shop?.name ?? ''}
+            ownerName={shop?.owner ?? ''}
+          />
+        )}
+
+        {dashScreen === 'inventory' && (
+          <InventoryScreen
+            onAddPhone={() => { setEditingPhone(null); setDashScreen('addPhone'); }}
+            onEditPhone={(phone) => { setEditingPhone(phone); setDashScreen('editPhone'); }}
+            onSoldInventory={() => setDashScreen('soldInventory')}
+          />
+        )}
+
+        {dashScreen === 'subscription' && (
+          <SubscriptionScreen />
+        )}
+
+        {dashScreen === 'profile' && (
+          <ShopkeeperProfileScreen
+            onNavigateHelp={() => setDashScreen('help')}
+          />
+        )}
+
+        {/* Phone form screens */}
+        {dashScreen === 'addPhone' && (
+          <PhoneFormScreen
+            onSave={() => back(() => setDashScreen('inventory'))}
+            onBack={handleDashBack}
+          />
+        )}
+
+        {dashScreen === 'editPhone' && editingPhone && (
+          <PhoneFormScreen
+            phone={editingPhone}
+            onSave={() => back(() => { setEditingPhone(null); setDashScreen('inventory'); })}
+            onBack={handleDashBack}
+          />
+        )}
+
+        {/* New screens */}
+        {dashScreen === 'analytics' && (
+          <AnalyticsScreen onBack={handleDashBack} />
+        )}
+
+        {dashScreen === 'offers' && (
+          <OffersScreen onBack={handleDashBack} />
+        )}
+
+        {dashScreen === 'notifications' && (
+          <NotificationsScreen onBack={handleDashBack} />
+        )}
+
+        {dashScreen === 'settings' && (
+          <SettingsScreen
+            onBack={handleDashBack}
+            onLogout={handleLogout}
+          />
+        )}
+
+        {dashScreen === 'help' && (
+          <HelpSupportScreen onBack={handleDashBack} />
+        )}
+
+        {dashScreen === 'soldInventory' && (
+          <SoldInventoryScreen onBack={handleDashBack} />
+        )}
+
+        {dashScreen === 'activityHistory' && (
+          <ActivityHistoryScreen onBack={handleDashBack} />
+        )}
+
+        {/* Dashboard bottom nav */}
+        {showDashNav && (
+          <DashboardNav activeTab={dashTab} onTabChange={handleDashTabChange} />
+        )}
+      </div>
+    </div>
+  );
+}

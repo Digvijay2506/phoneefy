@@ -1,102 +1,155 @@
-import { useState, useEffect } from 'react';
-import { Search, Store } from 'lucide-react';
-import type { Shop } from '../data';
-import { shops } from '../data';
-import StarRating from '../components/StarRating';
-import SkeletonCard from '../components/SkeletonCard';
+import { useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
+import { MapPin, Phone, MessageCircle, Store, ArrowLeft, BadgeCheck } from 'lucide-react';
+import { shops, loadCatalog, sortShopsNearMe, formatDistance } from '../data';
+import BottomNav from '../components/BottomNav';
+import { LocationChip } from '../components/NearbyShops';
+import { useUserLocation } from '../lib/useUserLocation';
+import { trackShopViewed, trackWhatsAppClick, trackCallClick } from '@/lib/analytics';
 
 interface AllShopsScreenProps {
-  onShopTap: (shop: Shop) => void;
+  activeTab: string;
+  onTabChange: (tab: string) => void;
+  onBack?: () => void;
+  onShopTap: (shopId: string) => void;
 }
 
-export default function AllShopsScreen({ onShopTap }: AllShopsScreenProps) {
-  const [query, setQuery] = useState('');
-  const [loading, setLoading] = useState(true);
+const container = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.07 } },
+};
+
+const item = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.32, 0.72, 0, 1] } },
+};
+
+export default function AllShopsScreen({ activeTab, onTabChange, onBack, onShopTap }: AllShopsScreenProps) {
+  const [loadedTick, forceRender] = useState(0);
+  const { coords, status: locationStatus, request: requestLocation } = useUserLocation();
+  // Nearest first once the customer shares their location
+  const ordered = useMemo(
+    () => sortShopsNearMe(shops, coords),
+    [loadedTick, coords], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 800);
-    return () => clearTimeout(timer);
+    let mounted = true;
+    loadCatalog().then(() => {
+      if (mounted) forceRender((n) => n + 1);
+    });
+    return () => { mounted = false; };
   }, []);
 
-  const filteredShops = query
-    ? shops.filter(
-        (s) =>
-          s.name.toLowerCase().includes(query.toLowerCase()) ||
-          s.address.toLowerCase().includes(query.toLowerCase())
-      )
-    : shops;
-
   return (
-    <div className="min-h-full pb-20 bg-[#F5F7FA]">
+    <div className="flex flex-col min-h-screen" style={{ background: '#F5F7FA' }}>
       {/* Header */}
-      <div className="bg-white px-4 py-4 border-b border-[#E5E7EB] sticky top-0 z-40">
-        <h1 className="text-xl font-bold text-[#1A1D1F]">Shops Near You</h1>
-      </div>
-
-      {/* Search Bar */}
-      <div className="px-4 mt-4">
-        <div className="bg-white border border-[#E5E7EB] rounded-xl px-4 py-3 flex items-center gap-2.5 focus-within:border-[#1A73E8] focus-within:shadow-[0_0_0_3px_rgba(26,115,232,0.1)] transition-all duration-200">
-          <Search size={18} color="#9CA3AF" />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search shops by name..."
-            className="flex-1 bg-transparent text-sm text-[#1A1D1F] outline-none placeholder:text-[#9CA3AF]"
-          />
+      <motion.div
+        initial={{ opacity: 0, y: -14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
+        className="flex items-center gap-3 px-4 pt-12 pb-5"
+        style={{ background: 'linear-gradient(160deg, #0D1B2A 0%, #1A3A5C 100%)' }}
+      >
+        {onBack && (
+          <button
+            onClick={onBack}
+            aria-label="Back"
+            className="btn-tap w-10 h-10 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0"
+          >
+            <ArrowLeft size={20} color="white" />
+          </button>
+        )}
+        <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
+          <Store size={20} color="white" />
         </div>
+        <div>
+          <h1 className="text-lg font-bold text-white">All Shops</h1>
+          <p className="text-xs text-white/60">{ordered.length} {ordered.length === 1 ? 'shop' : 'shops'} on Phoneefy</p>
+        </div>
+      </motion.div>
+
+      <div className="px-4 pt-3">
+        <LocationChip status={locationStatus} onRequest={requestLocation} />
       </div>
 
-      {/* Shops List */}
-      <div className="px-4 mt-4 flex flex-col gap-3">
-        {loading ? (
-          <>
-            <SkeletonCard type="shop" />
-            <SkeletonCard type="shop" />
-            <SkeletonCard type="shop" />
-            <SkeletonCard type="shop" />
-          </>
-        ) : filteredShops.length > 0 ? (
-          filteredShops.map((shop) => (
-            <div
-              key={shop.id}
-              onClick={() => onShopTap(shop)}
-              className="card-tap bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3.5 cursor-pointer"
-            >
+      <motion.div
+        variants={container}
+        initial="hidden"
+        animate="show"
+        className="flex-1 px-4 pt-3 pb-24 space-y-3"
+      >
+        {ordered.map((shop) => (
+          <motion.div
+            key={shop.id}
+            variants={item}
+            whileHover={{ y: -2, boxShadow: '0 10px 24px rgba(15,23,42,0.10)' }}
+            whileTap={{ scale: 0.985 }}
+            onClick={() => { onShopTap(shop.id); trackShopViewed(shop.name, shop.distance); }}
+            className="bg-white rounded-2xl shadow-sm p-4 cursor-pointer overflow-hidden"
+          >
+            {shop.coverImage && (
+              <div className="-mx-4 -mt-4 mb-3.5 h-28 bg-[#E8ECF0]">
+                <img src={shop.coverImage} alt="" className="w-full h-full object-cover" loading="lazy" />
+              </div>
+            )}
+            <div className="flex items-start gap-3.5">
+              {/* Avatar */}
               <div
-                className="w-14 h-14 rounded-[14px] flex items-center justify-center flex-shrink-0"
-                style={{ backgroundColor: 'rgba(26,115,232,0.08)' }}
+                className="w-14 h-14 rounded-xl flex items-center justify-center text-xl font-bold text-white flex-shrink-0 overflow-hidden"
+                style={{ background: 'linear-gradient(135deg, #1A73E8, #0D47A1)' }}
               >
-                <Store size={24} color="#1A73E8" />
+                {shop.logo ? <img src={shop.logo} alt="" className="w-full h-full object-cover" loading="lazy" /> : shop.name.charAt(0)}
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-base font-semibold text-[#1A1D1F] truncate">{shop.name}</h3>
-                <p className="text-xs text-[#6B7280] truncate mt-0.5">{shop.address}</p>
-                <div className="flex items-center gap-3 mt-1">
-                  <StarRating rating={shop.rating} size={12} />
-                  <span className="text-[11px] text-[#6B7280]">{shop.listingCount} phones</span>
-                  <span className="text-[11px] text-[#9CA3AF]">{shop.distance}</span>
+                <div className="flex items-center gap-1">
+                  <h3 className="text-sm font-bold text-[#1A1D1F] truncate">{shop.name}</h3>
+                  {shop.verified && <BadgeCheck size={14} color="#1A73E8" className="flex-shrink-0" />}
                 </div>
+                <p className="text-xs text-[#9CA3AF] mt-0.5">{shop.listingCount} {shop.listingCount === 1 ? 'phone' : 'phones'} listed</p>
+                <div className="flex items-start gap-1 mt-1.5">
+                  <MapPin size={12} color="#9CA3AF" className="mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-[#6B7280] leading-relaxed">{shop.address}</p>
+                </div>
+                {(shop.distanceKm !== null || shop.distance) && (
+                  <div className="flex items-center gap-1 mt-1">
+                    <MapPin size={11} color="#1A73E8" className="flex-shrink-0" />
+                    <span className="text-xs font-medium text-[#1A73E8]">
+                      {shop.distanceKm !== null ? formatDistance(shop.distanceKm) : shop.distance}
+                    </span>
+                  </div>
+                )}
               </div>
-              <button
-                className="px-3.5 py-2 rounded-xl text-xs font-semibold flex-shrink-0 transition-all duration-200"
-                style={{
-                  background: 'rgba(26,115,232,0.08)',
-                  color: '#1A73E8',
-                }}
-              >
+              <button className="btn-tap flex-shrink-0 bg-[#1A73E8] text-white text-xs font-semibold px-4 py-2 rounded-xl">
                 View
               </button>
             </div>
-          ))
-        ) : (
-          <div className="flex flex-col items-center justify-center pt-16">
-            <Store size={48} color="#9CA3AF" />
-            <p className="text-sm text-[#6B7280] mt-4">No shops found</p>
-            <p className="text-xs text-[#9CA3AF] mt-1">Try a different search term</p>
-          </div>
+
+            <div className="flex gap-2 mt-3.5 pt-3.5 border-t border-[#F5F7FA]">
+              <button
+                onClick={(e) => { e.stopPropagation(); window.open(`tel:${shop.phone}`); trackCallClick('shop_directory', shop.name); }}
+                className="btn-tap flex-1 flex items-center justify-center gap-1.5 h-9 rounded-xl text-xs font-semibold"
+                style={{ background: 'rgba(26,115,232,0.08)', color: '#1A73E8' }}
+              >
+                <Phone size={13} /> Call
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); window.open(`https://wa.me/${shop.phone.replace(/\D/g, '')}`); trackWhatsAppClick('shop_directory', shop.name, 0); }}
+                className="btn-tap flex-1 flex items-center justify-center gap-1.5 h-9 rounded-xl text-xs font-semibold"
+                style={{ background: 'rgba(37,211,102,0.08)', color: '#25D366' }}
+              >
+                <MessageCircle size={13} /> WhatsApp
+              </button>
+            </div>
+          </motion.div>
+        ))}
+
+        {shops.length === 0 && (
+          <div className="text-center text-sm text-[#9CA3AF] pt-16">No shops registered yet.</div>
         )}
-      </div>
+      </motion.div>
+
+      <BottomNav activeTab={activeTab} onTabChange={onTabChange} />
     </div>
   );
 }
